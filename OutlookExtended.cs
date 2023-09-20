@@ -5,7 +5,6 @@ using Microsoft.Office.Interop.Outlook;
 using System.Runtime.InteropServices;
 using System;
 using Direct.Office.Library;
-using System.Xml.Linq;
 
 namespace PAteam.Library.OutlookExtended
 {
@@ -380,12 +379,9 @@ namespace PAteam.Library.OutlookExtended
                         outlookEmails.Add(email);
                         if (outlookEmails.Count == maxCount)
                         {
-                            ReleaseObject(reportItem);
                             break;
                         }
                     }
-
-                    ReleaseObject(reportItem);
                 }
                 catch (System.Exception)
                 {
@@ -464,7 +460,7 @@ namespace PAteam.Library.OutlookExtended
 
         private static OutlookReportEmail ConvertToOutlookEmail(this ReportItem reportItem)
         {
-            OutlookReportEmail returnEmail = new OutlookReportEmail();
+            OutlookReportEmail returnEmail = new OutlookReportEmail(reportItem);
             returnEmail.Subject = reportItem.Subject;
             returnEmail.ReceivedDateTime = reportItem.LastModificationTime;
             returnEmail.IsRead = !reportItem.UnRead;
@@ -481,10 +477,9 @@ namespace PAteam.Library.OutlookExtended
                     Attachment attachment = attachments[i];
                     if (attachment != null)
                     {
-                        OutlookReportEmailAttachment outlookAttachmentInfo = new OutlookReportEmailAttachment(i.ToString(), attachment.DisplayName, false, -1, "");
+                        OutlookReportEmailAttachment outlookAttachmentInfo = new OutlookReportEmailAttachment(attachment);
                         returnEmail.AttachmentsInfo.Add(outlookAttachmentInfo);
                     }
-                    ReleaseObject(attachment);
                 }
             }
 

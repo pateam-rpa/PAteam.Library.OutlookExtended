@@ -1,8 +1,9 @@
 ﻿using Direct.Interface;
 using Direct.Shared;
+using Microsoft.Office.Interop.Outlook;
 using Microsoft.Win32;
-using System;
 using System.IO;
+using System.Web;
 
 namespace PAteam.Library.OutlookExtended
 {
@@ -23,6 +24,8 @@ namespace PAteam.Library.OutlookExtended
         protected PropertyHolder<string> _ContentType = new PropertyHolder<string>("ContentType");
 
         public readonly string ATTACHMENT_FULL_PATH;
+
+        private readonly Attachment OriginalAttachment;
 
         public byte[] ContentBytes { get; private set; }
 
@@ -96,12 +99,44 @@ namespace PAteam.Library.OutlookExtended
             }
         }
 
+        [DirectDom("Save as file")]
+        [DirectDomMethod("Save attachment as a file to the following loaction: {Full File Path}")]
+        [MethodDescription("Saves attachment as file")]
+        public bool SaveAsFile(string filePath)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(filePath)) 
+                {
+                    throw new System.Exception("Empty file path");
+                }
+
+                OriginalAttachment.SaveAsFile(filePath);
+                return true;
+            }
+            catch (System.Exception ex)
+            {
+                logger.Error(ex.Message);
+                return false;
+            }
+        }
+
         public OutlookReportEmailAttachment()
         {
         }
 
         public OutlookReportEmailAttachment(IProject project)
         {
+        }
+
+        public OutlookReportEmailAttachment(Attachment attachment)
+        {
+            OriginalAttachment = attachment;
+            Id = attachment.Index.ToString();
+            Name = attachment.FileName;
+            IsInline = false;
+            Size = attachment.Size;
+            ContentType = GetMimeType(attachment.FileName);
         }
 
         public OutlookReportEmailAttachment(string id, string name, bool isInline, int size, string contentType)
@@ -130,7 +165,7 @@ namespace PAteam.Library.OutlookExtended
             {
                 Size = (int)new FileInfo(fileFullPath).Length;
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
                 logger.Error(ex.Message);
             }
@@ -144,15 +179,15 @@ namespace PAteam.Library.OutlookExtended
 
         private static string GetMimeType(string fileName)
         {
-            string result = "application/unknown";
-            string name = Path.GetExtension(fileName).ToLower();
-            RegistryKey registryKey = Registry.ClassesRoot.OpenSubKey(name);
-            if (registryKey != null && registryKey.GetValue("Content Type") != null)
-            {
-                result = registryKey.GetValue("Content Type").ToString();
-            }
+            return MimeMapping.GetMimeMapping(fileName);
 
-            return result;
+            //RegistryKey registryKey = Registry.ClassesRoot.OpenSubKey(name);
+            //if (registryKey != null && registryKey.GetValue("Content Type") != null)
+            //{
+            //    result = registryKey.GetValue("Content Type").ToString();
+            //}
+
+            //return result;
         }
     }
 }
