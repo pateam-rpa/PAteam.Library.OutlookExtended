@@ -5,6 +5,8 @@ using Microsoft.Office.Interop.Outlook;
 using System.Runtime.InteropServices;
 using System;
 using Direct.Office.Library;
+using System.Threading;
+using System.Diagnostics;
 
 namespace PAteam.Library.OutlookExtended
 {
@@ -20,17 +22,40 @@ namespace PAteam.Library.OutlookExtended
 
         static OutlookExtended()
         {
-            try
+            int maxRetries = 3;
+            int retryDelay = 5000;
+            int retryCount = 0;
+            bool success = false;
+
+            while (!success && retryCount < maxRetries)
             {
-                logger.Debug("Opening Outlook");
-                Application = new Application();
-                IsOutlookInstalled = true;
+                try
+                {
+                    logger.Debug("Attempting to open Outlook");
+                    Application = new Application();
+                    IsOutlookInstalled = true;
+                    logger.Debug("Outlook opened successfully");
+                    success = true;
+                }
+                catch (System.Exception ex)
+                {
+                    IsOutlookInstalled = false;
+                    retryCount++;
+                    logger.Debug($"Memory usage: {GetMemoryUsage()}, CPU load: {GetCpuLoad()}");
+                    logger.Debug($"Retry {retryCount}/{maxRetries} failed to open Outlook. Exception: {ex}");
+
+                    if (retryCount < maxRetries)
+                    {
+                        logger.Debug($"Waiting for {retryDelay / 1000} seconds before next retry.");
+                        Thread.Sleep(retryDelay); // Wait for 5 seconds before retrying
+                    }
+                }
             }
-            catch (System.Exception ex)
+
+            if (!success)
             {
-                IsOutlookInstalled = false;
-                logger.ErrorFormat("Outlook is not installed on local machine or COM object not registered. exception: {0}", ex.Message);
-                throw;
+                logger.Error("All retries failed. Outlook may not be installed or COM object cannot be registered.");
+                throw new System.Exception("All retries failed. Outlook may not be installed or COM object cannot be registered.");
             }
         }
 
@@ -525,6 +550,25 @@ namespace PAteam.Library.OutlookExtended
                 Marshal.ReleaseComObject(objectToRelease);
                 objectToRelease = null;
             }
+        }
+
+        private static long GetMemoryUsage()
+        {
+            using (var process = Process.GetCurrentProcess())
+            {
+                // Returns the amount of physical memory, in bytes, allocated for the associated process.
+                return process.WorkingSet64 / 1024 / 1024;
+            }
+        }
+
+        private static double GetCpuLoad()
+        {
+            var cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+
+            // The first call will always return 0, so you need to call NextValue twice.
+            cpuCounter.NextValue();
+            Thread.Sleep(1000); // Wait a second to get a proper reading
+            return cpuCounter.NextValue();
         }
     }
 }
