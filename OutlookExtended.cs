@@ -16,46 +16,20 @@ namespace PAteam.Library.OutlookExtended
     public static class OutlookExtended
     {
         private static IDirectLog logger = DirectLogManager.GetLogger("LibraryObjects");
-        private static bool IsOutlookInstalled;
+        private static DateTime classInitializedTime = DateTime.Now;
+        private static string outlookNotInstalledErrorMsg = "Outlook may not be installed or COM object cannot be registered.";
+        private static bool IsOutlookInstalled = false;
 
         private static Application Application { get; set; }
 
         static OutlookExtended()
         {
-            int maxRetries = 3;
-            int retryDelay = 5000;
-            int retryCount = 0;
-            bool success = false;
+            TryInitializeOutlookApplication();
 
-            while (!success && retryCount < maxRetries)
+            if (!IsOutlookInstalled)
             {
-                try
-                {
-                    logger.Debug("Attempting to open Outlook");
-                    Application = new Application();
-                    IsOutlookInstalled = true;
-                    logger.Debug("Outlook opened successfully");
-                    success = true;
-                }
-                catch (System.Exception ex)
-                {
-                    IsOutlookInstalled = false;
-                    retryCount++;
-                    logger.Debug($"Memory usage: {GetMemoryUsage()}, CPU load: {GetCpuLoad()}");
-                    logger.Debug($"Retry {retryCount}/{maxRetries} failed to open Outlook. Exception: {ex}");
-
-                    if (retryCount < maxRetries)
-                    {
-                        logger.Debug($"Waiting for {retryDelay / 1000} seconds before next retry.");
-                        Thread.Sleep(retryDelay); // Wait for 5 seconds before retrying
-                    }
-                }
-            }
-
-            if (!success)
-            {
-                logger.Error("All retries failed. Outlook may not be installed or COM object cannot be registered.");
-                throw new System.Exception("All retries failed. Outlook may not be installed or COM object cannot be registered.");
+                logger.Error(outlookNotInstalledErrorMsg);
+                throw new System.Exception(outlookNotInstalledErrorMsg);
             }
         }
 
@@ -76,6 +50,12 @@ namespace PAteam.Library.OutlookExtended
             //add new param to only query top x
             logger.InfoFormat("getting emails: max {0} emails, from folder '{1}', unread only - [{2}], mark as read = [{3}]", top, folderPath, onlyUnread, markAsRead);
             DirectCollection<OutlookReportEmail> emails = new DirectCollection<OutlookReportEmail>();
+
+            if (IsOutlookRestarted())
+            {
+                TryInitializeOutlookApplication();
+            }
+
             if (IsOutlookInstalled)
             {
                 try
@@ -112,13 +92,13 @@ namespace PAteam.Library.OutlookExtended
                 }
                 catch (System.Exception ex)
                 {
-                    logger.Error("Outlook is not installed on local machine", ex);
+                    logger.Error("Unhandled exception happened: ", ex);
                 }
 
             }
             else
             {
-                logger.Error("Outlook is not installed on local machine");
+                logger.Error(outlookNotInstalledErrorMsg);
             }
 
             return emails;
@@ -130,9 +110,14 @@ namespace PAteam.Library.OutlookExtended
         [MethodDescription("Move email with given id to the specified folder. Email ids are assigned by Outlook application.")]
         public static bool MoveEmailToFolder(string id, string emailFolder)
         {
+            if (IsOutlookRestarted())
+            {
+                TryInitializeOutlookApplication();
+            }
+
             if (!IsOutlookInstalled)
             {
-                logger.Error("Outlook is not installed on local machine");
+                logger.Error(outlookNotInstalledErrorMsg);
                 return false;
             }
             else
@@ -178,9 +163,14 @@ namespace PAteam.Library.OutlookExtended
         [MethodDescription("Mark email with given id as read/unread. Email ids are assigned by Outlook application.")]
         public static bool MarkEmailAsRead(bool status, string id)
         {
+            if (IsOutlookRestarted())
+            {
+                TryInitializeOutlookApplication();
+            }
+
             if (!IsOutlookInstalled)
             {
-                logger.Error("Outlook is not installed on local machine");
+                logger.Error(outlookNotInstalledErrorMsg);
                 return false;
             }
             else
@@ -224,6 +214,11 @@ namespace PAteam.Library.OutlookExtended
         [MethodDescription("Will return a total count of mail items from given folder. You can supply subject if you wish.")]
         public static int CountMailItems(string folderPath, string subject, bool onlyUnread)
         {
+            if (IsOutlookRestarted())
+            {
+                TryInitializeOutlookApplication();
+            }
+
             try
             {
                 if (IsOutlookInstalled)
@@ -246,7 +241,7 @@ namespace PAteam.Library.OutlookExtended
                 }
                 else
                 {
-                    logger.Error("Outlook is not installed on local machine");
+                    logger.Error(outlookNotInstalledErrorMsg);
                 }
             }
             catch (System.Exception ex)
@@ -263,6 +258,11 @@ namespace PAteam.Library.OutlookExtended
         [MethodDescription("Will return a total count of report items from given folder.")]
         public static int CountReportItems(string folderPath, bool onlyUnread)
         {
+            if (IsOutlookRestarted())
+            {
+                TryInitializeOutlookApplication();
+            }
+
             try
             {
                 if (IsOutlookInstalled)
@@ -283,7 +283,7 @@ namespace PAteam.Library.OutlookExtended
                 }
                 else
                 {
-                    logger.Error("Outlook is not installed on local machine");
+                    logger.Error(outlookNotInstalledErrorMsg);
                 }
 
             }
@@ -301,6 +301,11 @@ namespace PAteam.Library.OutlookExtended
         [MethodDescription("Will return a most recent report item from given folder")]
         public static OutlookReportEmail GetReportItem(string folderPath, bool onlyUnread)
         {
+            if (IsOutlookRestarted())
+            {
+                TryInitializeOutlookApplication();
+            }
+
             try
             {
                 if (IsOutlookInstalled)
@@ -321,7 +326,7 @@ namespace PAteam.Library.OutlookExtended
                 }
                 else
                 {
-                    logger.Error("Outlook is not installed on local machine");
+                    logger.Error(outlookNotInstalledErrorMsg);
                 }
 
             }
@@ -339,6 +344,12 @@ namespace PAteam.Library.OutlookExtended
         [MethodDescription("Will return a most recent mail item from given folder. You can supply subject if you wish.")]
         public static OutlookMailItem GetMostRecentMailItem(string folderPath, string subject, bool onlyUnread)
         {
+
+            if (IsOutlookRestarted())
+            {
+                TryInitializeOutlookApplication();
+            }
+
             try
             {
                 if (IsOutlookInstalled)
@@ -374,7 +385,7 @@ namespace PAteam.Library.OutlookExtended
                 }
                 else
                 {
-                    logger.Error("Outlook is not installed on local machine");
+                    logger.Error(outlookNotInstalledErrorMsg);
                 }
 
             }
@@ -569,6 +580,69 @@ namespace PAteam.Library.OutlookExtended
             cpuCounter.NextValue();
             Thread.Sleep(1000); // Wait a second to get a proper reading
             return cpuCounter.NextValue();
+        }
+
+        private static bool IsOutlookRestarted()
+        {
+            var outlookProcesses = Process.GetProcessesByName("OUTLOOK");
+            foreach (var process in outlookProcesses)
+            {
+                try
+                {
+                    if (process.StartTime > classInitializedTime)
+                    {
+                        logger.Debug("Outlook was restarted! Class init time: " + classInitializedTime.ToString() + " Outlook process start time: " + process.StartTime.ToString());
+                        return true;
+                    }
+                }
+                catch
+                {
+                }
+            }
+            return false;
+        }
+
+        private static bool TryInitializeOutlookApplication()
+        {
+            if (Application != null)
+            {
+                IsOutlookInstalled = false;
+                Marshal.ReleaseComObject(Application);
+                Application = null;
+            }
+
+            int maxRetries = 3;
+            int retryDelay = 5000;
+            int retryCount = 0;
+            bool success = false;
+
+            while (!success && retryCount < maxRetries)
+            {
+                try
+                {
+                    logger.Debug("Attempting to get the Outlook instance");
+                    Application = new Application();
+                    IsOutlookInstalled = true;
+                    logger.Debug("Outlook instance obtained successfully");
+                    classInitializedTime = DateTime.Now;
+                    success = true;
+                }
+                catch (System.Exception ex)
+                {
+                    IsOutlookInstalled = false;
+                    retryCount++;
+                    logger.Debug($"Memory usage: {GetMemoryUsage()}, CPU load: {GetCpuLoad()}");
+                    logger.Debug($"Retry {retryCount}/{maxRetries} failed to get Outlook instance. Exception: {ex}");
+
+                    if (retryCount < maxRetries)
+                    {
+                        logger.Debug($"Waiting for {retryDelay / 1000} seconds before next retry.");
+                        Thread.Sleep(retryDelay); // Wait for 5 seconds before retrying
+                    }
+                }
+            }
+
+             return success;
         }
     }
 }
