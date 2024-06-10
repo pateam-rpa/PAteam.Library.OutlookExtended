@@ -209,6 +209,47 @@ namespace PAteam.Library.OutlookExtended
             }
         }
 
+        [DirectDom("Get Sender Name from Mail Item")]
+        [DirectDomMethod("Get Sender Name from Mail Item with Id {Email Id}")]
+        [MethodDescription("Returns sender name from mail based on id")]
+        public static string GetSenderName(string id)
+        {
+            if (IsOutlookRestarted())
+            {
+                TryInitializeOutlookApplication();
+            }
+
+            if (!IsOutlookInstalled)
+            {
+                logger.Error(outlookNotInstalledErrorMsg);
+                return "";
+            }
+            else
+            {
+                try
+                {
+                    NameSpace mapiNamespace = Application.GetNamespace("MAPI");
+                    object outlookItem = mapiNamespace.GetItemFromID(id);
+
+                    MailItem mailItemFromId = outlookItem as MailItem;
+
+                    if (mailItemFromId != null)
+                    {
+                        return mailItemFromId.SenderName;
+                    }
+
+                    logger.ErrorFormat("GetSenderName() - No mail item with id {0} was found", id);
+                    return "";
+
+                }
+                catch (System.Exception ex)
+                {
+                    logger.ErrorFormat("GetSenderName() Exception - call stack:\n\t'{0}'\n\t message: '{1}'", ex.StackTrace, ex.Message);
+                    return "";
+                }
+            }
+        }
+
         [DirectDom("Count Mail Items")]
         [DirectDomMethod("Count mail items from folder {Folder}, with optional subject {Subject}, only unread {Only Unread}")]
         [MethodDescription("Will return a total count of mail items from given folder. You can supply subject if you wish.")]
