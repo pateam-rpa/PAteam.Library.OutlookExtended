@@ -214,6 +214,8 @@ namespace PAteam.Library.OutlookExtended
         [MethodDescription("Returns sender name from mail based on id")]
         public static string GetSenderName(string id)
         {
+            logger.Debug("GetSenderName() - Method start");
+
             if (IsOutlookRestarted())
             {
                 TryInitializeOutlookApplication();
@@ -224,30 +226,46 @@ namespace PAteam.Library.OutlookExtended
                 logger.Error(outlookNotInstalledErrorMsg);
                 return "";
             }
-            else
+
+            if (!IsApplicationValid())
             {
-                try
-                {
-                    NameSpace mapiNamespace = Application.GetNamespace("MAPI");
-                    object outlookItem = mapiNamespace.GetItemFromID(id);
-
-                    MailItem mailItemFromId = outlookItem as MailItem;
-
-                    if (mailItemFromId != null)
-                    {
-                        return mailItemFromId.SenderName;
-                    }
-
-                    logger.ErrorFormat("GetSenderName() - No mail item with id {0} was found", id);
-                    return "";
-
-                }
-                catch (System.Exception ex)
-                {
-                    logger.ErrorFormat("GetSenderName() Exception - call stack:\n\t'{0}'\n\t message: '{1}'", ex.StackTrace, ex.Message);
-                    return "";
-                }
+                logger.Error("GetSenderName() - Application is invalid. Trying to reinitialize");
+                TryInitializeOutlookApplication();
             }
+
+            try
+            {
+
+                logger.Debug("GetSenderName() - Attempting to get MAPI namespace.");
+                NameSpace mapiNamespace = Application.GetNamespace("MAPI");
+
+                logger.Debug($"GetSenderName() - Attempting to retrieve item with ID: {id}");
+                object outlookItem = mapiNamespace.GetItemFromID(id);
+
+                logger.Debug("GetSenderName() - Attempting to cast item to MailItem.");
+                MailItem mailItemFromId = outlookItem as MailItem;
+
+                if (IsMailItemAvailable(mailItemFromId))
+                {
+                    logger.Debug($"GetSenderName() - Successfully retrieved mail item with ID: {id}");
+                    logger.Debug($"GetSenderName() - trying to retrieve sender name");
+                    return mailItemFromId.SenderName;
+                }
+
+                logger.ErrorFormat("GetSenderName() - No mail item with ID {0} was found or it is unavailable", id);
+                return "";
+
+            }
+            catch (System.Exception ex)
+            {
+                logger.ErrorFormat("GetSenderName() Exception - call stack:\n\t'{0}'\n\t message: '{1}'", ex.StackTrace, ex.Message);
+                return "";
+            }
+            finally
+            {
+                logger.Debug("GetSenderName() - Method end");
+            }
+
         }
 
         [DirectDom("Count Mail Items")]
@@ -643,6 +661,46 @@ namespace PAteam.Library.OutlookExtended
             return false;
         }
 
+        private static bool IsApplicationValid()
+        {
+            if (Application == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                // Attempt to access a simple property to ensure the Application is still valid
+                var version = Application.Version;
+                return true;
+            }
+            catch
+            {
+                // If accessing the property throws an exception, the Application is not valid
+                return false;
+            }
+        }
+
+        private static bool IsMailItemAvailable(MailItem mailItem)
+        {
+            if (mailItem == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                // Attempt to access a simple property to ensure the MailItem is still valid
+                var entryId = mailItem.EntryID;
+                return true;
+            }
+            catch
+            {
+                // If accessing the property throws an exception, the MailItem is not available
+                return false;
+            }
+        }
+
         private static bool TryInitializeOutlookApplication()
         {
             if (Application != null)
@@ -683,7 +741,7 @@ namespace PAteam.Library.OutlookExtended
                 }
             }
 
-             return success;
+            return success;
         }
     }
 }
